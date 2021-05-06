@@ -16,11 +16,14 @@ Adafruit_NeoPixel cheek_left = Adafruit_NeoPixel(NUM_LEDS_CHEEK, PIN_CHEEK_LEFT,
 Adafruit_NeoPixel cheek_right = Adafruit_NeoPixel(NUM_LEDS_CHEEK, PIN_CHEEK_RIGHT, NEO_GRBW + NEO_KHZ800);
 
 static void onboard_blink(void) {
+  int voltage = analogRead(A6);
+
   static uint8_t cycle_counter = 0;
   static bool blink_mode = false;
 
   if (++cycle_counter > 10) {
-   // digitalWrite(PIN_ONBOARD_LED, blink_mode);
+    if (voltage < 3500 / 2)
+      digitalWrite(PIN_ONBOARD_LED, blink_mode);
     blink_mode = !blink_mode;
     cycle_counter = 0;
   }

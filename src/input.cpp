@@ -73,9 +73,12 @@ double input_get_gravity(void) {
   return (atan2(-msa.y, msa.x));
 }
 
-uint8_t input_get_tap(void) {
+uint8_t input_get_tap(uint8_t clear) {
   static uint32_t tap_time = 0;
   static uint8_t tap = 0;
+
+  if (clear) tap = 0;
+
   uint8_t motionstat = msa.getMotionInterruptStatus();
   if (motionstat) {
     if (motionstat & (1 << 5)) {

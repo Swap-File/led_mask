@@ -7,7 +7,7 @@
 #include "screen.h"
 #include "sound.h"
 
-#define TFT_BACKLIGHT 47  // Display backlight pin
+#define PIN_TFT_BACKLIGHT 47  // Display backlight pin
 
 Adafruit_BMP280 bmp;
 
@@ -26,7 +26,27 @@ static void fps_update(void) {
   }
 }
 
+#define GUI_MODE_LIGHT 2
+#define GUI_MODE_SOUND 1
+#define GUI_MODE_OFF 0
+#define GUI_MODE_HORN 3
+static uint8_t gui_mode = GUI_MODE_OFF;
+
+#define HUE_MODE_RANDOM 0
+#define HUE_MODE_WHITE 1
+#define HUE_MODE_RAINBOW 2
+#define HUE_MODE_PORTAL 3
+static int hue_mode = HUE_MODE_RAINBOW;
+
 static uint8_t hue = 0;
+
+static uint16_t rgb565(CRGB color) {
+  uint16_t temp = 0;
+  temp |= (((uint16_t)(color.r >> 3 & 0b00011111)) << 11);
+  temp |= (((uint16_t)(color.g >> 2 & 0b00111111)) << 5);
+  temp |= (((uint16_t)(color.b >> 3 & 0b00011111)) << 0);
+  return temp;
+}
 
 void setup(void) {
   Serial.begin(115200);
@@ -35,8 +55,8 @@ void setup(void) {
   led_init();
   sound_init();
 
-  pinMode(TFT_BACKLIGHT, OUTPUT);
-  digitalWrite(TFT_BACKLIGHT, HIGH);  // Backlight on
+  pinMode(PIN_TFT_BACKLIGHT, OUTPUT);
+  digitalWrite(PIN_TFT_BACKLIGHT, HIGH);  // Backlight on
 
   pinMode(A1, INPUT);  //LIGHT
 
@@ -51,41 +71,11 @@ void setup(void) {
                   Adafruit_BMP280::FILTER_OFF,    /* Filtering. */
                   Adafruit_BMP280::STANDBY_MS_1); /* Standby time. */
 
-  //set mic gain
-
-  hue = random(256);  //random color on boot
+  hue = random(256);  // random first color on boot
 }
 
-uint16_t rgb565(CRGB color) {
-  uint16_t temp = 0;
-  temp |= (((uint16_t)(color.r >> 3 & 0b00011111)) << 11);
-  temp |= (((uint16_t)(color.g >> 2 & 0b00111111)) << 5);
-  temp |= (((uint16_t)(color.b >> 3 & 0b00011111)) << 0);
-  return temp;
-}
-
-#define GUI_MODE_LIGHT 2
-#define GUI_MODE_SOUND 1
-#define GUI_MODE_OFF 0
-#define GUI_MODE_HORN 3
-
-static uint8_t gui_mode = GUI_MODE_OFF;
-
-#define HUE_MODE_RANDOM 0
-#define HUE_MODE_WHITE 1
-#define HUE_MODE_RAINBOW 2
-#define HUE_MODE_PORTAL 3
-int countBits(unsigned char byte) {
-  int count = 0;
-  for (int i = 0; i < 8; i++)
-    count += (byte >> i) & 0x01;  // Shift bit[i] to the first position, and mask off the remaining bits.
-  return count;
-}
-
-int hue_mode = HUE_MODE_RAINBOW;
 
 void loop() {
-  //
 
   static CRGB color1 = CHSV(hue, 255, 255);
   static bool cheek_on = false;
@@ -138,7 +128,6 @@ void loop() {
   //int ambient_brightness = analogRead(A1);
   int value = sound_read();
 
-  //do screen
   screen_update(gravity, value, rgb565(color1));
 
   //calculate LED state
@@ -224,13 +213,31 @@ void loop() {
       speakeron = !speakeron;
   }
 
-  led_cheek_update(value, cheek_on, color1, input_get_tap(), left, right);
-  led_mouth_update(value, mouth_on, color1);
+  static bool soft_off = false;
+  if (touchbuttons == 0b00000110) {
+       soft_off = true;
+    }
+    
+  uint8_t tap_val = input_get_tap(soft_off);
+  if (tap_val != 0) {
+    if (touchbuttons == 0)
+      soft_off = false;
+    else
+      soft_off = true;
+  }
+
+  if (soft_off) {
+    led_cheek_update(value, cheek_on, CRGB(0, 0, 0), 0, CRGB(0, 0, 0), CRGB(0, 0, 0));
+    led_mouth_update(value, mouth_on, CRGB(0, 0, 0));
+    digitalWrite(PIN_TFT_BACKLIGHT, LOW);
+  } else {
+    led_cheek_update(value, cheek_on, color1, tap_val, left, right);
+    led_mouth_update(value, mouth_on, color1);
+    digitalWrite(PIN_TFT_BACKLIGHT, HIGH);
+  }
 
   fps_update();
 
   mask_pressure_avg_slow_last = mask_pressure_avg_slow;
   touchbuttons_last = touchbuttons;
-  //  static uint8_t backlight = 0;
-  //  analogWrite(TFT_BACKLIGHT, backlight++);
 }
